@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { createApp } from './app';
 import { FileSchemaRepository } from './repositories/FileSchemaRepository';
+import { LoggingConvertKitClient } from './clients/LoggingConvertKitClient';
 import * as path from 'path';
 
 dotenv.config();
@@ -15,7 +16,7 @@ function validateEnvironment(): void {
     throw new Error('PORT must be a valid number');
   }
 
-  // Note: CONVERTKIT_API_KEY would be required here when API integration is added
+  // Note: CONVERTKIT_API_KEY would be required here when using real API client
   // Example:
   // if (!process.env.CONVERTKIT_API_KEY) {
   //   missing.push('CONVERTKIT_API_KEY');
@@ -33,6 +34,7 @@ function logStartup(port: number | string, dataDir: string): void {
     port,
     dataDir,
     nodeEnv: process.env.NODE_ENV || 'development',
+    convertKitMode: 'logging',
   };
 
   if (process.env.NODE_ENV === 'production') {
@@ -45,6 +47,7 @@ function logStartup(port: number | string, dataDir: string): void {
     console.log(`Environment: ${startupInfo.nodeEnv}`);
     console.log(`Port: ${startupInfo.port}`);
     console.log(`Data directory: ${startupInfo.dataDir}`);
+    console.log(`ConvertKit Mode: ${startupInfo.convertKitMode} (requests will be logged only)`);
     console.log('========================================');
   }
 }
@@ -55,11 +58,12 @@ validateEnvironment();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../data');
 
-// Initialize repository
+// Initialize repository and client
 const schemaRepository = new FileSchemaRepository(DATA_DIR);
+const convertKitClient = new LoggingConvertKitClient();
 
 // Create and start the app
-const app = createApp(schemaRepository);
+const app = createApp(schemaRepository, convertKitClient);
 
 app.listen(PORT, () => {
   logStartup(PORT, DATA_DIR);
