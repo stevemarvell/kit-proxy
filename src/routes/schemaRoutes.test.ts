@@ -71,5 +71,13 @@ describe('Schema Routes - Integration', () => {
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ error: 'Invalid formId parameter' });
     });
+
+    it('should return 404 for empty formId (route mismatch)', async () => {
+      // Note: Empty string doesn't match the :formId parameter route
+      // This results in 404 route not found rather than 400 validation error
+      const response = await request(app).get('/api/schema/');
+
+      expect(response.status).toBe(404);
+    });
   });
 });
