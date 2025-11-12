@@ -195,33 +195,6 @@ The Railway config includes:
 - Automatic restart on failure
 - Nixpacks builder
 
-### Vercel
-
-Deploy to Vercel using the included `vercel.json` configuration:
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-```
-
-**Environment Variables (Vercel Dashboard):**
-- `CONVERTKIT_API_KEY` - Your ConvertKit API key
-- `NODE_ENV=production`
-- `DATA_DIR=/tmp/data` (or use Vercel Blob Storage)
-
-**Note:** Vercel Serverless Functions have limitations:
-- 50MB deployment size limit
-- Ephemeral filesystem (use Vercel Blob or external storage for schemas)
-- 10s execution timeout on Hobby plan
-
-For persistent schema storage on Vercel, consider:
-- Using Vercel Blob Storage
-- Fetching schemas from a CDN/external API
-- Including schemas in the deployment bundle
-
 ## Development Notes
 
 - **Chicago-style Testing**: Tests use real dependencies rather than extensive mocking
