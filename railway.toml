@@ -3,9 +3,14 @@ builder = "RAILPACK"
 
 [deploy]
 startCommand = "npm start"
+serverless = true
 numReplicas = 0
 sleepApplication = true
 restartPolicyType = "NEVER"
+
+[deploy.resources]
+cpu = 0.5
+memory = 512
 
 [deploy.healthcheck]
 path = "/health"
