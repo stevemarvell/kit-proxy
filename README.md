@@ -63,6 +63,62 @@ curl http://localhost:3000/api/schema/contact-form
 }
 ```
 
+### POST /api/subscribe/:formId
+
+Subscribe a user to a ConvertKit form. Validates the request body against the form's JSON Schema before processing.
+
+**Parameters:**
+- `formId` (string): The form identifier
+
+**Request Body:**
+The body must match the JSON Schema for the specified formId. Common fields include:
+- `email` (string, required): Email address
+- `firstName` (string, optional): First name
+- `lastName` (string, optional): Last name
+- `tags` (array, optional): Tags to apply to subscriber
+- `customFields` (object, optional): Custom field values
+
+**Response:**
+- `201 Created`: Subscription successful
+- `400 Bad Request`: Invalid formId or validation failed
+- `404 Not Found`: Schema not found for the given formId
+- `500 Internal Server Error`: Server error
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/subscribe/newsletter \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe"
+  }'
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "message": "Subscriber logged (not actually subscribed)",
+  "subscriberId": "mock-1234567890"
+}
+```
+
+**Validation Error Response:**
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {
+      "instancePath": "/email",
+      "message": "must match format \"email\""
+    }
+  ]
+}
+```
+
+**Note:** Currently uses `LoggingConvertKitClient` which logs subscription requests but does not actually call the ConvertKit API. This is intentional for development/testing. Replace with a real ConvertKit client implementation when ready for production.
+
 ### GET /health
 
 Health check endpoint.
