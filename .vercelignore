@@ -1,0 +1,10 @@
+node_modules
+src
+test-data*
+coverage
+*.test.ts
+.env
+.env.local
+.git
+.github
+README.md
