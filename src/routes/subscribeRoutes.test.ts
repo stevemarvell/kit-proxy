@@ -1,6 +1,6 @@
 import request from 'supertest';
 import express from 'express';
-import { createSubscribeRouter } from './subscribeRoutes';
+import { createSubscribeRouter, clearValidatorCache } from './subscribeRoutes';
 import { FileSchemaRepository } from '../repositories/FileSchemaRepository';
 import { LoggingConvertKitClient } from '../clients/LoggingConvertKitClient';
 import { promises as fs } from 'fs';
@@ -26,11 +26,15 @@ describe('Subscribe Routes - Integration', () => {
     app.use('/api', createSubscribeRouter(client, repository));
 
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    // Clear validator cache before each test
+    clearValidatorCache();
   });
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
     consoleLogSpy.mockRestore();
+    clearValidatorCache();
   });
 
   describe('POST /api/subscribe/:formId', () => {
@@ -92,6 +96,10 @@ describe('Subscribe Routes - Integration', () => {
       expect(response.status).toBe(400);
       expect(response.body.error).toBe('Validation failed');
       expect(response.body.details).toBeDefined();
+      expect(Array.isArray(response.body.details)).toBe(true);
+      expect(response.body.details.length).toBeGreaterThan(0);
+      expect(response.body.details[0]).toHaveProperty('field');
+      expect(response.body.details[0]).toHaveProperty('message');
     });
 
     it('should return 400 for missing required fields', async () => {
@@ -105,16 +113,18 @@ describe('Subscribe Routes - Integration', () => {
       };
 
       await fs.writeFile(
-        path.join(tempDir, 'test-form.schema.json'),
+        path.join(tempDir, 'missing-field.schema.json'),
         JSON.stringify(schema)
       );
 
       const response = await request(app)
-        .post('/api/subscribe/test-form')
+        .post('/api/subscribe/missing-field')
         .send({ email: 'test@example.com' });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe('Validation failed');
+      expect(response.body.details).toBeDefined();
+      expect(Array.isArray(response.body.details)).toBe(true);
     });
 
     it('should return 400 for empty formId', async () => {
@@ -180,6 +190,8 @@ describe('Subscribe Routes - Integration', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe('Validation failed');
+      expect(response.body.details).toBeDefined();
+      expect(Array.isArray(response.body.details)).toBe(true);
     });
 
     it('should return 500 on repository error', async () => {

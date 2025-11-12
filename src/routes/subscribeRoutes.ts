@@ -1,11 +1,28 @@
 import { Router, Request, Response } from 'express';
 import { ConvertKitClient } from '../types/convertkit';
 import { SchemaRepository } from '../types/schema';
-import Ajv, { ValidateFunction } from 'ajv';
+import Ajv, { ValidateFunction, ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 
 const ajv = new Ajv();
 addFormats(ajv);
+
+// Cache for compiled validators to prevent memory leaks
+// Key: formId, Value: compiled validator function
+const validatorCache = new Map<string, ValidateFunction>();
+
+/**
+ * Sanitize AJV validation errors to avoid exposing internal paths
+ */
+export function sanitizeValidationErrors(errors: ErrorObject[] | null | undefined): unknown[] {
+  if (!errors) return [];
+
+  return errors.map(error => ({
+    field: error.instancePath || error.schemaPath,
+    message: error.message || 'Validation error',
+    // Only include safe properties, exclude internal details
+  }));
+}
 
 export function createSubscribeRouter(
   convertKitClient: ConvertKitClient,
@@ -28,14 +45,19 @@ export function createSubscribeRouter(
         return res.status(404).json({ error: 'Schema not found for the given formId' });
       }
 
-      // Validate request body against schema
-      const validate: ValidateFunction = ajv.compile(schema);
+      // Get or compile validator (with caching to prevent memory leaks)
+      let validate = validatorCache.get(formId);
+      if (!validate) {
+        validate = ajv.compile(schema);
+        validatorCache.set(formId, validate);
+      }
+
       const valid = validate(req.body);
 
       if (!valid) {
         return res.status(400).json({
           error: 'Validation failed',
-          details: validate.errors,
+          details: sanitizeValidationErrors(validate.errors),
         });
       }
 
@@ -49,6 +71,8 @@ export function createSubscribeRouter(
           subscriberId: result.subscriberId,
         });
       } else {
+        // Note: This path is reachable when ConvertKit client returns success=false
+        // This can happen when the API call fails or returns an error response
         return res.status(500).json({
           error: result.message || 'Subscription failed',
         });
@@ -59,4 +83,11 @@ export function createSubscribeRouter(
   });
 
   return router;
+}
+
+/**
+ * Clear the validator cache (useful for testing or schema updates)
+ */
+export function clearValidatorCache(): void {
+  validatorCache.clear();
 }
