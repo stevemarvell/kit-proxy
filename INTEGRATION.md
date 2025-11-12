@@ -760,15 +760,37 @@ const debouncedValidate = useCallback(
 
 ### 4. CORS Configuration
 
-Ensure your backend allows frontend domain:
+The backend automatically handles CORS with flexible configuration:
 
-```typescript
-// Backend: src/app.ts
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-  credentials: true,
-}));
+**Backend Configuration (already implemented in src/app.ts):**
+- Supports specific origins: `https://myapp.vercel.app`
+- Supports wildcards for PR previews: `https://*.vercel.app`, `https://*.railway.app`
+- Allows all origins when `ALLOWED_ORIGINS` is not set (development mode)
+- Always allows requests with no origin (Postman, mobile apps)
+
+**Environment Variable Setup:**
+
+```bash
+# .env (Backend)
+
+# Development - Allow all origins
+# (Leave ALLOWED_ORIGINS empty or omit it)
+
+# Production - Specific origins
+ALLOWED_ORIGINS=https://myapp.vercel.app,https://myapp.railway.app
+
+# Production with PR previews - Wildcards
+ALLOWED_ORIGINS=http://localhost:3000,https://myapp.vercel.app,https://*.vercel.app,https://*.railway.app
+
+# Local + Vercel + Railway (recommended)
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,https://myapp.vercel.app,https://*.vercel.app,https://myapp.railway.app,https://*.railway.app
 ```
+
+**How it works:**
+- Comma-separated list of allowed origins
+- Wildcard `*` matches any subdomain (perfect for PR previews)
+- Automatically trims whitespace from origins
+- Enables credentials for authenticated requests
 
 ### 5. Environment-Specific URLs
 
@@ -902,11 +924,38 @@ test('newsletter subscription flow', async ({ page }) => {
 **Problem:** CORS policy blocking requests
 
 **Solution:**
-```typescript
-// Ensure backend has correct CORS configuration
-// Check browser console for specific CORS error
-// Verify REACT_APP_API_URL is correct
-```
+
+1. **Check Backend Environment Variables:**
+   ```bash
+   # Make sure ALLOWED_ORIGINS is set correctly in backend .env
+   # For local development, you can leave it empty
+   ALLOWED_ORIGINS=
+
+   # For production with PR previews
+   ALLOWED_ORIGINS=https://myapp.vercel.app,https://*.vercel.app,https://*.railway.app
+   ```
+
+2. **Common CORS Issues:**
+   - **Frontend running on localhost:3000**: Add `http://localhost:3000` to `ALLOWED_ORIGINS`
+   - **Vercel PR preview**: Use wildcard pattern `https://*.vercel.app`
+   - **Railway PR preview**: Use wildcard pattern `https://*.railway.app`
+   - **Mixed content**: Make sure both frontend and backend use HTTPS in production
+
+3. **Debugging Steps:**
+   ```javascript
+   // Check browser console for CORS error details
+   // Verify your frontend origin matches ALLOWED_ORIGINS
+   console.log('Current origin:', window.location.origin);
+
+   // Test backend health endpoint with curl
+   curl -H "Origin: https://myapp.vercel.app" https://your-backend.railway.app/health -v
+   ```
+
+4. **Verify REACT_APP_API_URL:**
+   ```bash
+   # Frontend .env should point to backend
+   REACT_APP_API_URL=https://your-backend.railway.app
+   ```
 
 ### Network Timeout
 
