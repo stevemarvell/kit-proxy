@@ -4,7 +4,6 @@ builder = "RAILPACK"
 [deploy]
 startCommand = "npm start"
 serverless = true
-numReplicas = 0
 sleepApplication = true
 restartPolicyType = "NEVER"
 
