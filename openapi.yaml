@@ -1,0 +1,447 @@
+openapi: 3.0.3
+info:
+  title: Kit Proxy API
+  description: |
+    ConvertKit proxy backend service that provides JSON Schema validation endpoints
+    without exposing API keys to the frontend.
+
+    ## Features
+    - Secure API key management (backend only)
+    - JSON Schema-based validation
+    - RESTful API design
+    - Health monitoring
+
+    ## Authentication
+    No authentication required for public endpoints. API keys are managed server-side.
+
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: ISC
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+  - url: https://kit-proxy.railway.app
+    description: Production server (example)
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Schema
+    description: JSON Schema retrieval endpoints
+  - name: Subscribe
+    description: ConvertKit subscription endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API is running and healthy
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+
+  /api/schema/{formId}:
+    get:
+      tags:
+        - Schema
+      summary: Get JSON Schema by form ID
+      description: |
+        Retrieve the JSON Schema definition for a specific form.
+        Schemas are used for client-side and server-side validation.
+
+        Form IDs correspond to schema files in the `data/` directory:
+        - `contact-form` → `data/contact-form.schema.json`
+        - `newsletter-signup` → `data/newsletter-signup.schema.json`
+
+      operationId: getSchema
+      parameters:
+        - name: formId
+          in: path
+          description: Unique identifier for the form schema
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            example: contact-form
+      responses:
+        '200':
+          description: Schema retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONSchema'
+              examples:
+                contactForm:
+                  summary: Contact form schema
+                  value:
+                    $schema: http://json-schema.org/draft-07/schema#
+                    type: object
+                    properties:
+                      email:
+                        type: string
+                        format: email
+                        description: Email address
+                      firstName:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                        description: First name
+                      lastName:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                        description: Last name
+                    required:
+                      - email
+                      - firstName
+                    additionalProperties: false
+                newsletterSignup:
+                  summary: Newsletter signup schema
+                  value:
+                    $schema: http://json-schema.org/draft-07/schema#
+                    type: object
+                    properties:
+                      email:
+                        type: string
+                        format: email
+                        description: Email address
+                    required:
+                      - email
+                    additionalProperties: false
+        '400':
+          description: Invalid formId parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Invalid formId parameter
+        '404':
+          description: Schema not found for the given formId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Schema not found for the given formId
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Internal server error
+
+  /api/subscribe/{formId}:
+    post:
+      tags:
+        - Subscribe
+      summary: Submit subscription form
+      description: |
+        Submit a subscription form with automatic validation and ConvertKit integration.
+
+        ## Validation Flow
+        1. Validates formId parameter
+        2. Retrieves JSON Schema for the form
+        3. Validates request body against schema
+        4. Submits to ConvertKit API if validation passes
+
+        ## Required Fields
+        Required fields vary by form schema. Check `/api/schema/{formId}` for details.
+
+      operationId: subscribe
+      parameters:
+        - name: formId
+          in: path
+          description: Unique identifier for the form
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            example: newsletter-signup
+      requestBody:
+        description: Form submission data (validated against schema)
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Dynamic object validated against the form's JSON Schema
+              additionalProperties: true
+            examples:
+              newsletterSignup:
+                summary: Newsletter signup
+                value:
+                  email: user@example.com
+              contactForm:
+                summary: Contact form
+                value:
+                  email: user@example.com
+                  firstName: John
+                  lastName: Doe
+              contactFormMinimal:
+                summary: Contact form (minimal required)
+                value:
+                  email: user@example.com
+                  firstName: John
+      responses:
+        '201':
+          description: Subscription successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscribeSuccessResponse'
+              example:
+                success: true
+                message: Subscription successful
+                subscriberId: '12345678'
+        '400':
+          description: Validation failed or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                invalidFormId:
+                  summary: Invalid formId
+                  value:
+                    error: Invalid formId parameter
+                validationFailed:
+                  summary: Schema validation failed
+                  value:
+                    error: Validation failed
+                    details:
+                      - field: /email
+                        message: must match format "email"
+                      - field: /firstName
+                        message: must NOT have fewer than 1 characters
+        '404':
+          description: Schema not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Schema not found for the given formId
+        '500':
+          description: Internal server error or ConvertKit API failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                internalError:
+                  summary: Internal server error
+                  value:
+                    error: Internal server error
+                convertKitError:
+                  summary: ConvertKit API error
+                  value:
+                    error: Subscription failed
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+          description: Health status of the service
+          example: ok
+
+    JSONSchema:
+      type: object
+      description: JSON Schema Draft 7 specification
+      required:
+        - type
+      properties:
+        $schema:
+          type: string
+          description: JSON Schema specification version
+          example: http://json-schema.org/draft-07/schema#
+        type:
+          type: string
+          description: Schema type
+          enum:
+            - object
+            - array
+            - string
+            - number
+            - boolean
+            - 'null'
+          example: object
+        title:
+          type: string
+          description: Schema title
+          example: Contact Form
+        description:
+          type: string
+          description: Schema description
+          example: Schema for contact form validation
+        properties:
+          type: object
+          description: Object properties definitions
+          additionalProperties:
+            $ref: '#/components/schemas/JSONSchemaProperty'
+        required:
+          type: array
+          description: List of required property names
+          items:
+            type: string
+          example:
+            - email
+            - firstName
+        additionalProperties:
+          type: boolean
+          description: Whether additional properties are allowed
+          example: false
+      additionalProperties: true
+
+    JSONSchemaProperty:
+      type: object
+      description: JSON Schema property definition
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: Property type
+          enum:
+            - string
+            - number
+            - integer
+            - boolean
+            - object
+            - array
+            - 'null'
+          example: string
+        format:
+          type: string
+          description: String format validation
+          enum:
+            - email
+            - date
+            - date-time
+            - uri
+            - uuid
+          example: email
+        description:
+          type: string
+          description: Property description
+          example: Email address
+        minLength:
+          type: integer
+          minimum: 0
+          description: Minimum string length
+          example: 1
+        maxLength:
+          type: integer
+          minimum: 0
+          description: Maximum string length
+          example: 100
+        minimum:
+          type: number
+          description: Minimum numeric value
+        maximum:
+          type: number
+          description: Maximum numeric value
+        pattern:
+          type: string
+          description: Regular expression pattern
+          example: ^[A-Za-z]+$
+        enum:
+          type: array
+          description: Allowed values
+          items:
+            type: string
+          example:
+            - option1
+            - option2
+        items:
+          $ref: '#/components/schemas/JSONSchemaProperty'
+          description: Array items schema
+      additionalProperties: true
+
+    SubscribeSuccessResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Indicates successful subscription
+          example: true
+        message:
+          type: string
+          description: Success message
+          example: Subscription successful
+        subscriberId:
+          type: string
+          description: ConvertKit subscriber ID
+          example: '12345678'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Schema not found for the given formId
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Validation failed
+        details:
+          type: array
+          description: List of validation errors
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          description: Field path that failed validation
+          example: /email
+        message:
+          type: string
+          description: Validation error message
+          example: must match format "email"
+
+  securitySchemes: {}
+
+security: []
+
+externalDocs:
+  description: Kit Proxy Integration Guide
+  url: https://github.com/stevemarvell/kit-proxy/blob/main/INTEGRATION.md
